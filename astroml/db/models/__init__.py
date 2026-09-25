@@ -271,7 +271,13 @@ class NormalizedTransaction(Base):
     __table_args__ = (UniqueConstraint("ledger_sequence", "operation_id", "hop_index",
                       name="uq_normalized_transactions_natural_key"), Index("ix_normalized_transactions_hash", "transaction_hash"), Index(
         "ix_normalized_transactions_operation", "ledger_sequence", "operation_id"), Index("ix_normalized_transactions_sender_timestamp", "sender",
-                      "timestamp"), Index("ix_normalized_transactions_receiver_timestamp", "receiver", "timestamp", postgresql_where=(receiver.isnot(None))))
+                      "timestamp"), Index("ix_normalized_transactions_receiver_timestamp", "receiver", "timestamp", postgresql_where=(receiver.isnot(None))),
+        # Issue #732 — the snapshot builders read a timestamp range in the
+        # blockchain's total order, so this index carries that order all the
+        # way through: the planner walks it for the range and the rows arrive
+        # already sorted, with no sort node and no tie left for it to break.
+        Index("ix_normalized_transactions_timestamp_order", "timestamp",
+              "ledger_sequence", "operation_id", "hop_index"))
 
 
 class DbModel(Base):
