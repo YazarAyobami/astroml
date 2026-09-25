@@ -20,7 +20,23 @@ from astroml.ingestion.parsers import (
     _extract_destination,
     _parse_datetime,
     extract_path_payment_hops,
+    ledger_sequence_from_operation_id,
 )
+
+
+def _natural_key(data: dict) -> tuple[int | None, int | None]:
+    """Return ``(ledger_sequence, operation_id)`` for a raw operation payload.
+
+    Horizon's operation id is a toid, so the ledger is recovered from it rather
+    than read from a separate field.  Payloads with no id yield ``(None, None)``:
+    the row is then written without a natural key instead of being keyed on a
+    guess, which keeps the ingest path working for synthetic or partial input.
+    """
+    raw_id = data.get("id")
+    if raw_id is None:
+        return (None, None)
+    operation_id = int(raw_id)
+    return (ledger_sequence_from_operation_id(operation_id), operation_id)
 
 
 def normalize_operation(data: dict) -> NormalizedTransaction:
@@ -47,9 +63,13 @@ def normalize_operation(data: dict) -> NormalizedTransaction:
 
     timestamp = _parse_datetime(data["created_at"])
     transaction_hash = data["transaction_hash"]
+    ledger_sequence, operation_id = _natural_key(data)
 
     return NormalizedTransaction(
         transaction_hash=transaction_hash,
+        ledger_sequence=ledger_sequence,
+        operation_id=operation_id,
+        hop_index=0,
         sender=sender,
         receiver=receiver,
         asset=normalized_asset,
@@ -60,6 +80,10 @@ def normalize_operation(data: dict) -> NormalizedTransaction:
 
 def normalize_path_payment_hops(data: dict) -> list[NormalizedTransaction]:
     """Return one NormalizedTransaction per hop for a path payment operation.
+
+    Every hop keeps the operation's real ``transaction_hash`` and the hop's
+    position in ``hop_index``, which together with the operation id makes each
+    hop a separate row that is still idempotent on retry.
 
     Falls back to a single record (via :func:`normalize_operation`) for
     non-path-payment types so callers can use this function uniformly.
@@ -73,10 +97,14 @@ def normalize_path_payment_hops(data: dict) -> list[NormalizedTransaction]:
 
     timestamp = _parse_datetime(data["created_at"])
     transaction_hash = data["transaction_hash"]
+    ledger_sequence, operation_id = _natural_key(data)
 
     return [
         NormalizedTransaction(
-            transaction_hash=f"{transaction_hash}_hop{hop['hop_index']}",
+            transaction_hash=transaction_hash,
+            ledger_sequence=ledger_sequence,
+            operation_id=operation_id,
+            hop_index=hop["hop_index"],
             sender=hop["from_account"],
             receiver=hop["to_account"],
             asset=hop["asset"],

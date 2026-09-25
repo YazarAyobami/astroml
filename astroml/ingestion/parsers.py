@@ -25,6 +25,26 @@ def _parse_datetime(iso_string: str) -> datetime:
     return datetime.fromisoformat(iso_string.replace("Z", "+00:00"))
 
 
+#: Bit widths of the fields packed into a Stellar toid.  The id of every
+#: ledger, transaction, operation and effect is ``ledger << 32 | tx << 12 | op``
+#: (see https://developers.stellar.org/docs/learn/glossary#total-order-id),
+#: which is what makes an operation id usable as an ingest-time natural key.
+_TOD_LEDGER_SHIFT = 32
+
+
+def ledger_sequence_from_operation_id(operation_id: int) -> int:
+    """Recover the ledger sequence an operation was applied in from its toid.
+
+    ``operation_id`` is Horizon's operation id, which packs the ledger, the
+    transaction's application order within it, and the operation's index within
+    the transaction.  Only the ledger is needed to key an ingestion write.
+
+    >>> ledger_sequence_from_operation_id(53919970611201)
+    12554
+    """
+    return int(operation_id) >> _TOD_LEDGER_SHIFT
+
+
 def parse_ledger(data: dict) -> Ledger:
     """Parse a Horizon ledger JSON dict into a Ledger ORM instance."""
     return Ledger(

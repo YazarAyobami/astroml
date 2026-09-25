@@ -20,6 +20,7 @@ from datetime import timedelta
 import aiohttp
 from aiohttp_sse_client import client as sse_client
 
+from astroml.db.repositories import NormalizedTransactionRepository
 from astroml.db.schema import Ledger, Transaction
 from astroml.db.session import get_session
 from astroml.ingestion.batch import BatchBuffer
@@ -279,8 +280,12 @@ class HorizonStreamClient:
         """Synchronous DB write for both raw and normalized operation."""
         session = get_session()
         try:
+            # ``Operation`` is keyed by Horizon's operation id, so merge already
+            # resolves it.  The normalized row has only a surrogate primary key,
+            # and merging it inserted a duplicate on every replay (#728), so it
+            # goes through the natural-key upsert instead.
             session.merge(op)
-            session.merge(normalized)
+            NormalizedTransactionRepository(session).upsert(normalized)
             session.commit()
         except Exception:
             session.rollback()
