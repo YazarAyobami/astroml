@@ -104,14 +104,6 @@ class IngestionService(Ingestor):
     ) -> IngestionResult:
         """Ingest ledgers incrementally and idempotently.
 
-        - start_ledger: starting ledger id (inclusive). If None, resume from last_processed_ledger+1 or 0.
-        - end_ledger: ending ledger id (inclusive). If None, will process only the start_ledger if provided,
-                      or nothing if no bounds are provided.
-        - fetch_fn: function to fetch data for a ledger id; defaults to identity payload
-        - process_fn: function to handle processing; defaults to no-op
-        - batch_size: progress-logging granularity, forwarded to :meth:`ingest_stream`
-          (see its docstring — issue #547). Does not change this method's return value.
-
         The function will skip any ledger already recorded as processed. State is updated per-ledger,
         ensuring safe retries.
 
@@ -123,6 +115,16 @@ class IngestionService(Ingestor):
 
         Returns:
             IngestionResult with timestamps and error tracking (issue #573)
+
+        Args:
+            start_ledger: Starting ledger id (inclusive). If None, resume from
+                last_processed_ledger+1 or 0.
+            end_ledger: Ending ledger id (inclusive). If None, only
+                ``start_ledger`` is processed when provided, otherwise nothing.
+            fetch_fn: Function to fetch data for a ledger id; defaults to identity payload.
+            process_fn: Function to handle processing; defaults to no-op.
+            batch_size: Progress-logging granularity, forwarded to
+                :meth:`ingest_stream` (issue #547). Does not change the return value.
         """
         start_time = datetime.utcnow()
         attempted: list[int] = []

@@ -434,6 +434,37 @@ def _build_snapshot_window(
         session.close()
 
 
+SNAPSHOT_MAX_ATTEMPTS = 3
+
+
+def _build_snapshot_window_with_retry(
+    index: int,
+    window_start: datetime,
+    window_end: datetime,
+    chunk_size: int,
+    max_attempts: int = SNAPSHOT_MAX_ATTEMPTS,
+) -> SnapshotWindow:
+    """Build a snapshot window, retrying transient failures (issue #979).
+
+    Each failed attempt is logged; the last exception is re-raised once
+    ``max_attempts`` is exhausted.
+    """
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be >= 1")
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return _build_snapshot_window(index, window_start, window_end, chunk_size)
+        except Exception:
+            logger.warning(
+                "snapshot window build failed",
+                extra={"window_index": index, "attempt": attempt, "max_attempts": max_attempts},
+                exc_info=True,
+            )
+            if attempt == max_attempts:
+                raise
+    raise AssertionError("unreachable")
+
+
 def iter_db_snapshots(
     window: str = "7d",
     t0: datetime | None = None,
@@ -511,7 +542,7 @@ def iter_db_snapshots(
                 while window_start < t_now and len(futures) < workers:
                     window_end = min(window_start + win_delta, t_now)
                     future = executor.submit(
-                        _build_snapshot_window,
+                        _build_snapshot_window_with_retry,
                         index,
                         window_start,
                         window_end,
