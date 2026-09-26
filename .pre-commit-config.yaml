@@ -21,6 +21,15 @@ repos:
 
   - repo: local
     hooks:
+      - id: secrets-gate
+        name: Secrets gate — fail on leaks and unaudited baseline entries (#720)
+        entry: python -m astroml.ci.secrets_gate --baseline .secrets.baseline
+        language: system
+        always_run: true
+        pass_filenames: false
+
+  - repo: local
+    hooks:
       - id: radon
         name: Check code complexity with Radon
         entry: radon
