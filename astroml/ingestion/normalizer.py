@@ -128,6 +128,16 @@ def snapshot_transaction(tx: NormalizedTransaction) -> dict[str, Any]:
         Dict with the normalized fields; ``timestamp`` is ISO-8601 and
         ``amount`` is a float (or None).
     """
+    return {
+        "transaction_hash": tx.transaction_hash,
+        "sender": tx.sender,
+        "receiver": tx.receiver,
+        "asset": tx.asset,
+        "amount": float(tx.amount) if tx.amount is not None else None,
+        "timestamp": tx.timestamp.isoformat(),
+    }
+
+
 # ---------------------------------------------------------------------------
 # CLI — issue #990
 # ---------------------------------------------------------------------------
@@ -174,17 +184,6 @@ def restore_transaction(snapshot: dict[str, Any]) -> NormalizedTransaction:
 
     Args:
         snapshot: Snapshot dict containing every normalized field.
-_RECORD_FIELDS = ("transaction_hash", "sender", "receiver", "asset", "amount", "timestamp")
-
-
-def restore_record(record: dict[str, Any]) -> NormalizedTransaction:
-    """Restore a NormalizedTransaction from a CLI output record (issue #985).
-
-    Inverse of the JSON records printed by :func:`main`, so a normalized
-    snapshot written to disk can be reloaded without re-fetching Horizon.
-
-    Args:
-        record: One decoded JSON record as emitted by the CLI.
 
     Returns:
         A new, unpersisted NormalizedTransaction.
@@ -204,6 +203,24 @@ def restore_record(record: dict[str, Any]) -> NormalizedTransaction:
         amount=float(amount) if amount is not None else None,
         timestamp=datetime.fromisoformat(snapshot["timestamp"]),
     )
+
+
+_RECORD_FIELDS = ("transaction_hash", "sender", "receiver", "asset", "amount", "timestamp")
+
+
+def restore_record(record: dict[str, Any]) -> NormalizedTransaction:
+    """Restore a NormalizedTransaction from a CLI output record (issue #985).
+
+    Inverse of the JSON records printed by :func:`main`, so a normalized
+    snapshot written to disk can be reloaded without re-fetching Horizon.
+
+    Args:
+        record: One decoded JSON record as emitted by the CLI.
+
+    Returns:
+        A new, unpersisted NormalizedTransaction.
+
+    Raises:
         ValueError: if a field is missing or the timestamp is not ISO-8601.
     """
     missing = [f for f in _RECORD_FIELDS if f not in record]
