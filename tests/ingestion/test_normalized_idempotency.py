@@ -15,7 +15,6 @@ lands on one row.
 
 from __future__ import annotations
 
-
 import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.exc import IntegrityError
